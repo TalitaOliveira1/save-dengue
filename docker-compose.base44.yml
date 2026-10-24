@@ -1,0 +1,54 @@
+# Base44 dev environment (sandbox preview).
+#
+# There is no compose file upstream: this app normally runs through the Base44 CLI
+# (`base44 login` + `base44 link` + `base44 dev`), which needs an interactive Base44
+# account login and a Deno backend, and serves on 5173.
+#
+# This file runs the app's Vite dev server from the cloned source against the app's
+# own hosted Base44 backend — the same wiring as `base44 dev --remote`. The repo's
+# Vite config (@base44/vite-plugin) proxies /api -> VITE_BASE44_APP_BASE_URL whenever
+# that variable is set, so the published app's API, auth and backend functions
+# (e.g. the smsRecifeData function) are reachable without the CLI.
+#
+# Keep the platform default BASE44_APP_BASE_URL / APP_ID overridable: both are public
+# app identifiers taken from the app's published URL, not credentials.
+services:
+  web:
+    image: node:22-bookworm # vite 8 requires node ^20.19 || >=22.12
+    working_dir: /app
+    command:
+      - sh
+      - -ec
+      - npm install --no-audit --no-fund && exec npm run dev -- --host 0.0.0.0 --port 3000 --strictPort
+    restart: on-failure
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+    environment:
+      # Frontend env: app id + hosted backend for the /api proxy (see vite.config.js).
+      - VITE_BASE44_APP_ID=${VITE_BASE44_APP_ID:-6ab812b660ae4e77b2dfbf8e}
+      - VITE_BASE44_APP_BASE_URL=${VITE_BASE44_APP_BASE_URL:-https://save-dengue-copy-b2dfbf8e.base44.app}
+      # Passed through from the platform; Vite >= 6.1 appends it to server.allowedHosts
+      # so the preview proxy host (<port>-<sandbox id>.e2b.app) is accepted.
+      - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+      - BASE44_PREVIEW_MODE
+    healthcheck:
+      # Checks both halves the container serves: the dev server itself and, through its
+      # /api proxy, the hosted Base44 backend the app boots against.
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)throw new Error('frontend '+r.status)}).then(()=>fetch('http://127.0.0.1:3000/api/apps/public/prod/public-settings/by-id/'+process.env.VITE_BASE44_APP_ID)).then(r=>{if(r.status>=400)throw new Error('backend proxy '+r.status);process.exit(0)}).catch(e=>{console.error('healthcheck failed: '+e.message);process.exit(1)})"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      base44.project: "SAVE-DENGUE"
+      base44.kind: "web"
+      base44.port: "3000"
+
+volumes:
+  web_node_modules:
