@@ -1,0 +1,11 @@
+{
+  "name": "SAVE-DENGUE",
+  "short_name": "SAVE-DENGUE",
+  "description": "Plataforma de prevenção à dengue no Recife: casos por bairro, unidades de saúde e alertas.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6fa",
+  "theme_color": "#2563eb",
+  "lang": "pt-BR"
+}
